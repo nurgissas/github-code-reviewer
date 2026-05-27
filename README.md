@@ -1,98 +1,182 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# GitHub Code Reviewer Bot
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+An intelligent microservices-based system that automatically reviews GitHub pull requests using AI. When a PR is opened, the bot analyzes the code and posts actionable feedback directly as comments on the PR.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+## Architecture
 
-## Description
+The system uses three independent microservices communicating asynchronously via Redis:
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
-
-## Project setup
-
-```bash
-$ npm install
+```
+GitHub Webhook Event (PR opened)
+         ↓
+┌─────────────────────────────────┐
+│  Webhook Service (Port 3000)    │
+│  - Receives GitHub events       │
+│  - Publishes to Redis queue     │
+└─────────────────────────────────┘
+         ↓ (Redis: pull-request channel)
+┌─────────────────────────────────┐
+│  Review Service (Port 3000)     │
+│  - Listens for PR events        │
+│  - Calls DeepSeek AI API        │
+│  - Publishes reviews to Redis   │
+└─────────────────────────────────┘
+         ↓ (Redis: reviews channel)
+┌─────────────────────────────────┐
+│  GitHub Service (Port 3000)     │
+│  - Posts reviews as PR comments │
+│  - Handles GitHub API calls     │
+└─────────────────────────────────┘
+         ↓
+   GitHub PR Comment Posted
 ```
 
-## Compile and run the project
+**Why this architecture?** Loose coupling means services fail independently. If the AI API is slow, the webhook service keeps working. If GitHub API is down, reviews still get generated.
+
+## Features
+
+- **Microservices Architecture** — Three independent services with Redis pub/sub messaging
+- **Async Processing** — Non-blocking, event-driven workflow
+- **Error Handling** — Graceful failures with retry logic and detailed logging
+- **AI-Powered Reviews** — Integration with DeepSeek API for intelligent code analysis
+- **Docker Support** — Single `docker compose up` to run everything
+- **Production-Ready** — Environment variables, health checks, proper signal handling
+
+## Tech Stack
+
+- **NestJS** — Backend framework with dependency injection
+- **Redis** — Message broker (pub/sub)
+- **DeepSeek API** — AI code review generation
+- **GitHub API** — PR integration and comment posting
+- **Docker & Docker Compose** — Containerization and orchestration
+- **TypeScript** — Type-safe development
+
+## Prerequisites
+
+- Node.js 20+
+- Docker & Docker Compose
+- GitHub personal access token ([create here](https://github.com/settings/tokens))
+- DeepSeek API key ([get here](https://platform.deepseek.com/api_keys))
+
+## Setup
+
+### 1. Clone & Install
 
 ```bash
-# development
-$ npm run start
-
-# watch mode
-$ npm run start:dev
-
-# production mode
-$ npm run start:prod
+git clone git@github.com:nurgissas/github-code-reviewer.git
+cd github-code-reviewer
+npm install
 ```
 
-## Run tests
+### 2. Configure Environment
 
 ```bash
-# unit tests
-$ npm run test
-
-# e2e tests
-$ npm run test:e2e
-
-# test coverage
-$ npm run test:cov
+cp .env.example .env
 ```
 
-## Deployment
+Edit `.env`:
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
+```env
+GITHUB_TOKEN=your-github-personal-access-token
+DEEPSEEK_API_KEY=your-deepseek-api-key
+REDIS_URL=redis://redis:6379
+REDIS_PASSWORD=
+```
 
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+### 3. Run with Docker
 
 ```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
+docker compose up --build
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+App runs on `http://localhost:3000`
 
-## Resources
+### 4. Configure GitHub Webhook
 
-Check out a few resources that may come in handy when working with NestJS:
+1. Go to your repository → Settings → Webhooks
+2. Click "Add webhook"
+3. **Payload URL**: `http://your-domain/webhook`
+4. **Content type**: `application/json`
+5. **Events**: Select "Pull requests"
+6. Check "Active"
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+## How It Works
 
-## Support
+1. **PR Created**: Developer opens a pull request on GitHub
+2. **Webhook Triggered**: GitHub sends POST request to `/webhook` endpoint
+3. **Queued**: Webhook Service extracts PR data, publishes to `pull-request` Redis channel
+4. **Reviewed**: Review Service subscribes to channel, receives message, calls DeepSeek API with PR details
+5. **Generated**: DeepSeek returns code review (markdown format)
+6. **Posted**: GitHub Service subscribes to `reviews` channel, receives completed review, posts it as a comment on the PR via GitHub API
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
+All services run in parallel. If one fails, others keep working.
 
-## Stay in touch
+## Project Structure
 
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
+```
+src/
+├── app.module.ts              # Root module
+├── app.controller.ts          # Health check endpoint
+├── redis.service.ts           # Redis client & pub/sub
+├── redis.module.ts            # Redis module wrapper
+├── webhook/                   # Service 1: Receive PR events
+│   ├── webhook.controller.ts  # HTTP POST endpoint
+│   ├── webhook.service.ts     # Process & publish to Redis
+│   └── webhook.module.ts
+├── review/                    # Service 2: AI review generation
+│   ├── review.service.ts      # Subscribe → Call DeepSeek → Publish
+│   └── review.module.ts
+└── github/                    # Service 3: Post reviews
+    ├── github.service.ts      # Subscribe → Post to GitHub
+    └── github.module.ts
+
+Dockerfile                      # Multi-stage build for production
+docker-compose.yml             # Redis + NestJS app orchestration
+.env.example                   # Environment variable template
+```
+
+## Environment Variables
+
+| Variable           | Description                  | Example                  |
+| ------------------ | ---------------------------- | ------------------------ |
+| `GITHUB_TOKEN`     | GitHub personal access token | `ghp_xxxxx...`           |
+| `DEEPSEEK_API_KEY` | DeepSeek API key             | `sk-xxxxx...`            |
+| `REDIS_URL`        | Redis connection URL         | `redis://redis:6379`     |
+| `REDIS_PASSWORD`   | Redis password (optional)    | `` (empty for local dev) |
+| `NODE_ENV`         | Environment                  | `development`            |
+
+## Key Implementation Details
+
+### Error Handling
+
+Each service has try-catch blocks around critical operations:
+
+- Webhook: Validates payload, catches Redis publish errors
+- Review: Checks API key, handles DeepSeek API failures, returns fallback review
+- GitHub: Validates token, catches GitHub API errors
+
+### Async Messaging
+
+Services communicate via Redis pub/sub, not HTTP. No service waits for another:
+
+- Webhook publishes and returns immediately
+- Review Service picks it up whenever it's ready
+- GitHub Service posts whenever review is ready
+
+### Docker Networking
+
+Inside Docker containers, services communicate by hostname (`redis://redis:6379`), not localhost. The `docker-compose.yml` creates an internal network where service names resolve as hostnames.
+
+## Future Improvements
+
+- **GitLab Support** — Accept merge request webhooks alongside GitHub PRs
+- **Rate Limiting** — Prevent API quota exhaustion
+- **PR Diff Analysis** — Include actual code changes in review prompt
+- **Multiple AI Providers** — Support Claude, GPT-4, other models
+- **Review History** — Store review results in database
+- **Metrics Dashboard** — Track review stats and performance
+- **Webhook Verification** — Validate GitHub webhook signatures for security
 
 ## License
 
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+MIT
