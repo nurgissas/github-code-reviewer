@@ -1,0 +1,38 @@
+version: '3.8'
+
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: code-reviewer-redis
+    ports:
+      - '6379:6379'
+    command: redis-server --appendonly yes
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  app:
+    build: .
+    container_name: code-reviewer-app
+    ports:
+      - '3000:3000'
+    environment:
+      - NODE_ENV=development
+      - REDIS_URL=redis://redis:6379
+      - REDIS_PASSWORD=
+      - GITHUB_TOKEN=${GITHUB_TOKEN}
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
+    depends_on:
+      redis:
+        condition: service_healthy
+    volumes:
+      - .:/app
+      - /app/node_modules
+    command: node dist/main.js
+
+volumes:
+  redis-data:
