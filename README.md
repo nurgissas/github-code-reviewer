@@ -142,7 +142,7 @@ docker-compose.yml             # Redis + NestJS app orchestration
 | `GITHUB_TOKEN`     | GitHub personal access token | `ghp_xxxxx...`           |
 | `DEEPSEEK_API_KEY` | DeepSeek API key             | `sk-xxxxx...`            |
 | `REDIS_URL`        | Redis connection URL         | `redis://redis:6379`     |
-| `REDIS_PASSWORD`   | Redis password (optional)    | `` (empty for local dev) |
+| `REDIS_PASSWORD`   | Redis password (optional)    | ` (empty for local dev)` |
 | `NODE_ENV`         | Environment                  | `development`            |
 
 ## Key Implementation Details
