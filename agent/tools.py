@@ -12,11 +12,11 @@ class FetchRepoInput(BaseModel):
 
 class SearchCodeInput(BaseModel):
   query: str = Field(description="Search query for relevant code")
-  limit: int = Field(default=5, description="Branch name")
+  limit: int = Field(default=5, description="Number of results")
 
 # tool definition
 @tool("fetch_repo_code")
-def fetch_repo_code(owner: str, repo:str, ref: str = "main") -> str:
+def fetch_repo_code(owner: str, repo: str, ref: str = "main") -> str:
   """Fetch repository code structure and key files
   Returns a Json string with file list and content of important files. this simulates cloning the repo and reading files
   """

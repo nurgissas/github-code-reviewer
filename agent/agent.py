@@ -1,9 +1,10 @@
 from typing import Any, TypedDict
 from langgraph.graph import StateGraph, END
-from langgraph_openai import GhatOpenAI
+from langchain_openai import GhatOpenAI
 from agent.tools import tools
 import json
 import os
+from agent.tools import fetch_repo_code, search_similar_code
 
 # Definition of agent state
 class AgentState(TypedDict):
@@ -31,7 +32,7 @@ async def fetch_repo_node(state: AgentState) -> AgentState:
   """Fetch repo code structure"""
   print(f"Fetching repo: {state['repo_owner']}/{state['repo_name']}")
 
-  repo_code = await fetch_repo_code(
+  repo_code = fetch_repo_code(
     owner=state['repo_owner'],
     repo=state['repo_name']
   )
@@ -42,11 +43,11 @@ async def fetch_repo_node(state: AgentState) -> AgentState:
 # node 2. retrieve relevant code sections using RAG
 async def retrieve_rel_code_node(state: AgentState) -> AgentState:
   """Search pgvector for code sections relevant to the PR"""
-  print(f"Searching for code similar to: {state["pr_title"]}")
+  print(f"Searching for code similar to: {state['pr_title']}")
 
   query = f"{state['pr_title']} {state['pr_body']}"
 
-  relevant = await search_similar_code(query = query, limit=5)
+  relevant = search_similar_code(query = query, limit=5)
 
   state['relevant_code'] = relevant
 
@@ -83,7 +84,7 @@ workflow = StateGraph(AgentState)
 # add nodes
 workflow.add_node("fetch_repo", fetch_repo_node)
 workflow.add_node("retrieve_code", retrieve_rel_code_node)
-workflow.add_node("reivew", review_code)
+workflow.add_node("review", review_code)
 
 # add edges (order of execution)
 workflow.set_entry_point("fetch_repo")

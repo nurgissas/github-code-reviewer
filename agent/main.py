@@ -31,7 +31,7 @@ async def listen_to_redis():
 
     for message in pubsub.listen():
       if message["type"] == "message":
-        pr_data = json.load(message["data"])
+        pr_data = json.loads(message["data"])
         print(f"Received PR #{pr_data['prNumber']}: {pr_data['title']}")
 
         # LangGraph agent will be here
