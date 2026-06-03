@@ -4,6 +4,7 @@ import redis
 from dotenv import load_dotenv
 import os
 import json
+from agent.agent import run_review_agent
 
 load_dotenv()
 
@@ -25,7 +26,7 @@ async def listen_to_redis():
   """Subscribe to Redis pull-request channel and process incoming PRs."""
   try:
     pubsub = redis_client.pubsub()
-    pubsub.subscribe("pull_request")
+    pubsub.subscribe("pull-request")
     print("Agent listening on pull-request channel")
 
     for message in pubsub.listen():
@@ -34,6 +35,13 @@ async def listen_to_redis():
         print(f"Received PR #{pr_data['prNumber']}: {pr_data['title']}")
 
         # LangGraph agent will be here
+        review = await run_review_agent(pr_data)
+        redis_client.publish("reviews", json.dumps({
+          "prNumber": pr_data["prNumber"],
+          "review": review,
+          "repository": pr_data["repository"]
+        }))
+
   except Exception as err:
     print(f"Error in listen_to_redis: {err}")
     await asyncio.sleep(2)
