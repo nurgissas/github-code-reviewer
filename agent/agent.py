@@ -1,6 +1,6 @@
 from typing import Any, TypedDict
 from langgraph.graph import StateGraph, END
-from langchain_openai import GhatOpenAI
+from langchain_openai import ChatOpenAI
 from agent.tools import tools
 import json
 import os
