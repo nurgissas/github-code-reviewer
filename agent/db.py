@@ -21,7 +21,7 @@ class CodeEmbedding(Base):
   code_snippet = Column(String(5000), nullable=False)
   embedding = Column(Vector(1536), nullable=False)
   repository = Column(String(200), nullable=False)
-  created_at = Column(DateTime, default = datetime.timezone.utc)
+  created_at = Column(DateTime, default = lambda: datetime.now(datetime.timezone.utc))
 
   def __repr__(self):
     return f"<CodeEmbedding(file={self.file_path}, repo={self.repository})>"
@@ -116,24 +116,24 @@ class DatabaseManager:
       limit: int=5
   ) -> list:
     """Search pgvector for similar code
-        
-        How it works:
-        1. Takes query embedding (from "PR title" converted to vector)
-        2. Finds code embeddings with smallest distance (cosine similarity)
-        3. Returns top N results
-        
-        Why pgvector:
-        - Regular SQL can't do similarity search efficiently
-        - pgvector uses IVFFlat index for fast approximate search
-        - <=> operator does cosine distance calculation
-        
-        Args:
-            query_embedding: Vector from PR title/description
-            repository: Search only this repository
-            limit: Return top N results
-        
-        Returns:
-            List of {file_path, code_snippet, similarity_score}
+
+    How it works:
+    1. Takes query embedding (from "PR title" converted to vector)
+    2. Finds code embeddings with smallest distance (cosine similarity)
+    3. Returns top N results
+
+    Why pgvector:
+    - Regular SQL can't do similarity search efficiently
+    - pgvector uses IVFFlat index for fast approximate search
+    - <=> operator does cosine distance calculation
+
+    Args:
+        query_embedding: Vector from PR title/description
+        repository: Search only this repository
+        limit: Return top N results
+
+    Returns:
+        List of {file_path, code_snippet, similarity_score}
     """
     async with self.async_session() as session:
       try:
@@ -141,49 +141,49 @@ class DatabaseManager:
         # <=> operator: pgvector's cosine distance
         # ORDER BY ... gives closest first (smallest distance = most similar)
         # LIMIT: Return top N
-                
-        from sqlalchemy import select, func, and_
+
+        from sqlalchemy import select, func
         from sqlalchemy.sql import desc
-                
+
         # Calculate distance (1 - cosine similarity)
         # pgvector returns negative distance, so we use abs()
         distance_col = (func.sqrt(1 - func.l2_distance(CodeEmbedding.embedding, query_embedding)))
-                
+
         stmt = (
-           select(
-              CodeEmbedding.file_path,
-              CodeEmbedding.code_snippet,
-              distance_col.label("similarity")
-                    )
-                    .where(CodeEmbedding.repository == repository)
-                    .order_by(desc(distance_col))
-                    .limit(limit)
-                )
-                
-                result = await session.execute(stmt)
-                rows = result.fetchall()
-                
-                # Convert to list of dicts
-                results = [
-                    {
-                        "file": row.file_path,
-                        "snippet": row.code_snippet,
-                        "similarity": float(row.similarity)
-                    }
-                    for row in rows
-                ]
-                
-                logger.info(f"✓ Found {len(results)} similar code sections")
-                return results
-                
-            except Exception as e:
-                logger.error(f"✗ Search failed: {e}")
-                return []
-    
-    async def close(self):
-        """Close database connection pool"""
-        await self.engine.dispose()
-        logger.info("✓ Database connection closed")
+          select(
+            CodeEmbedding.file_path,
+            CodeEmbedding.code_snippet,
+            distance_col.label("similarity")
+          )
+          .where(CodeEmbedding.repository == repository)
+          .order_by(desc(distance_col))
+          .limit(limit)
+        )
+
+        result = await session.execute(stmt)
+        rows = result.fetchall()
+
+        # Convert to list of dicts
+        results = [
+          {
+            "file": row.file_path,
+            "snippet": row.code_snippet,
+            "similarity": float(row.similarity)
+          }
+          for row in rows
+        ]
+
+        logger.info(f"Found {len(results)} similar code sections")
+        return results
+
+      except Exception as e:
+        logger.error(f"Search failed: {e}")
+        return []
+
+  async def close(self):
+    """Close database connection pool"""
+    await self.engine.dispose()
+    logger.info("Database connection closed")
 
 
 # Global instance (singleton pattern) - don't create multiple connections, reuse one

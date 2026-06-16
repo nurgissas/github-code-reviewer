@@ -5,6 +5,8 @@ from dotenv import load_dotenv
 import os
 import json
 from agent.agent import run_review_agent
+from agent.db import db_manager
+from agent.db import db_manager
 
 load_dotenv()
 
@@ -20,6 +22,10 @@ redis_client = redis.Redis(
 @app.on_event("startup")
 async def startup():
   print("Agent Service starting ...")
+  # Initialize database (create tables, pgvector extension)
+  await db_manager.init_db()
+  print("Database initialized")
+  # Start Redis listener in background
   asyncio.create_task(listen_to_redis())
 
 async def listen_to_redis():
