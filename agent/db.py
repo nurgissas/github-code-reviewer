@@ -1,10 +1,9 @@
 import os
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker, declarative_base
-from sqlalchemy import Column, Integer, String, Float, DateTime, text
+from sqlalchemy import Column, Integer, String, DateTime, text
 from pgvector.sqlalchemy import Vector
-from datetime import datetime
-import asyncio
+from datetime import datetime, timezone
 import logging
 
 logger=logging.getLogger(__name__)
@@ -21,7 +20,7 @@ class CodeEmbedding(Base):
   code_snippet = Column(String(5000), nullable=False)
   embedding = Column(Vector(1536), nullable=False)
   repository = Column(String(200), nullable=False)
-  created_at = Column(DateTime, default = lambda: datetime.now(datetime.timezone.utc))
+  created_at = Column(DateTime, default = lambda: datetime.now(timezone.utc))
 
   def __repr__(self):
     return f"<CodeEmbedding(file={self.file_path}, repo={self.repository})>"
@@ -33,7 +32,7 @@ class DatabaseManager:
     """Init DB connection"""
     db_url = os.getenv(
       "DATABASE_URL",
-      "postgresql+asyncpg://reviewer:password123@localhost:5432/code-reviewer"
+      "postgresql+asyncpg://reviewer:password123@localhost:5432/code_reviewer"
     )
 
     # create async engine with connection pooling
@@ -137,38 +136,31 @@ class DatabaseManager:
     """
     async with self.async_session() as session:
       try:
-        # SQL: Find closest embeddings using cosine distance
-        # <=> operator: pgvector's cosine distance
-        # ORDER BY ... gives closest first (smallest distance = most similar)
-        # LIMIT: Return top N
+        # pgvector: cosine_distance() maps to the <=> operator.
+        # Smallest distance = most similar. similarity = 1 - distance.
+        from sqlalchemy import select
 
-        from sqlalchemy import select, func
-        from sqlalchemy.sql import desc
-
-        # Calculate distance (1 - cosine similarity)
-        # pgvector returns negative distance, so we use abs()
-        distance_col = (func.sqrt(1 - func.l2_distance(CodeEmbedding.embedding, query_embedding)))
+        distance_col = CodeEmbedding.embedding.cosine_distance(query_embedding)
 
         stmt = (
           select(
             CodeEmbedding.file_path,
             CodeEmbedding.code_snippet,
-            distance_col.label("similarity")
+            distance_col.label("distance")
           )
           .where(CodeEmbedding.repository == repository)
-          .order_by(desc(distance_col))
+          .order_by(distance_col)  # ascending: closest first
           .limit(limit)
         )
 
         result = await session.execute(stmt)
         rows = result.fetchall()
 
-        # Convert to list of dicts
         results = [
           {
             "file": row.file_path,
             "snippet": row.code_snippet,
-            "similarity": float(row.similarity)
+            "similarity": round(1.0 - float(row.distance), 4)
           }
           for row in rows
         ]

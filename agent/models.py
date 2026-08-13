@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field
 from typing import List, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 
 class PRData(BaseModel):
   """Pull request data from webhook"""
@@ -21,7 +21,7 @@ class CodeSnippet(BaseModel):
   """A code snippet from the repository"""
   file: str
   snippet: str
-  similarity: float = Field(..., ge=0, le=1)
+  similarity: float = Field(..., ge=-1, le=1)
 
 # what agent returns
 class ReviewResult(BaseModel):
@@ -29,7 +29,7 @@ class ReviewResult(BaseModel):
   prNumber: int
   review: str
   repository: str
-  timestamp: Optional[datetime] = Field(default_factory=datetime.timezone.utc)
+  timestamp: Optional[datetime] = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 # database model for storing embeddings
 class EmbeddingRecord(BaseModel):
@@ -39,6 +39,6 @@ class EmbeddingRecord(BaseModel):
   code_snippet: str
   embedding: List[float] = Field(..., description="1536-dim vector from OpenAI")
   repository: str
-  created_at: Optional[datetime]= Field(default_factory=datetime.timezone.utc)
+  created_at: Optional[datetime] = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 

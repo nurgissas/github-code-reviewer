@@ -15,8 +15,11 @@ export class WebhookService {
     try {
       const message = JSON.stringify({
         action: payload.action,
-        prNumber: payload.number,
-        repository: payload.repository.name,
+        prNumber: payload.number ?? payload.pull_request.number,
+        // Full "owner/repo" — the GitHub service splits this to post the comment.
+        repository: payload.repository.full_name,
+        owner: payload.repository.owner?.login,
+        repo: payload.repository.name,
         title: payload.pull_request.title,
         body: payload.pull_request.body,
       });
